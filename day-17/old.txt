@@ -1,0 +1,209 @@
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        ArrayList<String> graph = (ArrayList<String>) Files.readAllLines(Path.of("test.txt"));
+        DijkstraSP sp = new DijkstraSP(graph);
+        sp.printPath();
+    }
+}
+
+class DijkstraSP{
+    boolean[] visited;
+    ArrayList<String> graph;
+
+    int width;
+    int height;
+    PriorityQueue<Traverser> queue;
+
+    enum Directions{
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT;
+    }
+
+    class Traverser implements Comparable<Traverser>{
+        private int index;
+
+        private int accumulatedHeatLoss;
+
+        private Direction dir;
+        private int numberRepeats;
+
+        Traverser prev;
+
+        public Traverser(int index, int heat, int repeats, Direction dir, Traverser prev){
+            this.index = index;
+            this.accumulatedHeatLoss = heat;
+            this.numberRepeats = repeats;
+            this.dir = dir;
+            this.prev = prev;
+        }
+
+        public void relax() {
+            Direction previousDir = this.dir;
+
+            // get above
+            if (previousDir != Direction.DOWN) {
+                int[] coords = translate1Dto2D(index);
+                if (coords[0] - 1 > 0 && (this.dir!=Direction.UP || this.numberRepeats<2)){
+                    int aboveIndex = translate2Dto1D(coords[0] - 1, coords[1]);
+                    int heat = getHeat(aboveIndex) + this.accumulatedHeatLoss;
+                    int numRepeats = (previousDir == Direction.UP) ? this.numberRepeats + 1 : 0;
+                    Traverser newT = new Traverser(aboveIndex, heat, numRepeats, Direction.UP, this);
+                    queue.add(newT);
+                }
+            }
+            // get below
+            if (previousDir != Direction.UP) {
+                int[] coords = translate1Dto2D(index);
+                if (coords[0] + 1 < height && (this.dir!=Direction.DOWN || this.numberRepeats<2)){
+                    int belowIndex = translate2Dto1D(coords[0] + 1, coords[1]);
+                    int heat = getHeat(belowIndex) + this.accumulatedHeatLoss;
+                    int numRepeats = (previousDir == Direction.DOWN) ? this.numberRepeats + 1 : 0;
+                    Traverser newT = new Traverser(belowIndex, heat, numRepeats, Direction.DOWN, this);
+                    queue.add(newT);
+                }
+            }
+            // get LEFT
+            if (previousDir != Direction.RIGHT) {
+                int[] coords = translate1Dto2D(index);
+                if (coords[1] - 1 > 0 && (this.dir!=Direction.LEFT || this.numberRepeats<2)){
+                    int leftIndex = translate2Dto1D(coords[0], coords[1]-1);
+                    int heat = getHeat(leftIndex) + this.accumulatedHeatLoss;
+                    int numRepeats = (previousDir == Direction.LEFT) ? this.numberRepeats + 1 : 0;
+                    Traverser newT = new Traverser(leftIndex, heat, numRepeats, Direction.LEFT, this);
+                    queue.add(newT);
+                }
+            }
+            // get right
+            if (previousDir != Direction.LEFT) {
+                int[] coords = translate1Dto2D(index);
+                if (coords[1] + 1 < width && (this.dir!=Direction.RIGHT || this.numberRepeats<2)){
+                    int rightIndex = translate2Dto1D(coords[0], coords[1]+1);
+                    int heat = getHeat(rightIndex) + this.accumulatedHeatLoss;
+                    int numRepeats = (previousDir == Direction.RIGHT) ? this.numberRepeats + 1 : 0;
+                    Traverser newT = new Traverser(rightIndex, heat, numRepeats, Direction.RIGHT, this);
+                    queue.add(newT);
+                }
+            }
+        }
+
+        @Override
+        public int compareTo(Traverser traverser) {
+            return Integer.compare(this.accumulatedHeatLoss, traverser.accumulatedHeatLoss);
+        }
+    }
+
+    private Traverser end;
+
+    public DijkstraSP(ArrayList<String> graph){
+        width = graph.get(0).length();
+        height = graph.size();
+        this.graph = graph;
+        int nvertexes = width*height;
+
+        visited = new boolean[nvertexes];
+
+        Traverser curr = new Traverser(0, 0, 0, Direction.START, null);
+        queue = new PriorityQueue<Traverser>();
+        queue.add(curr);
+        while (!queue.isEmpty()){
+            Traverser v = queue.remove();
+            if (visited[v.index]){
+                continue;
+            }
+            if (v.index==width*height-1){
+                this.end = v;
+                return;
+            }
+            visited[v.index] = true;
+
+            // relax the adjacent travelers
+            v.relax();
+        }
+        return;
+    }
+
+    private int getHeat(int index){
+        int[] coords = translate1Dto2D(index);
+        return Character.getNumericValue(graph.get(coords[0]).charAt(coords[1]));
+    }
+
+    private Iterable<Integer> getAdj(int v){
+        ArrayList<Integer> adjacent = new ArrayList<>();
+        int[] coords = translate1Dto2D(v);
+
+
+        if (coords[0] > 0){
+            // above
+            int index = translate2Dto1D(coords[0]-1, coords[1]);
+            adjacent.add(index);
+        }
+        if (coords[0] < height-1){
+            // below
+            int index = translate2Dto1D(coords[0] + 1, coords[1]);
+            adjacent.add(index);
+        }
+        if (coords[1] > 0){
+            // left
+            int index = translate2Dto1D(coords[0], coords[1] - 1);
+            adjacent.add(index);
+        }
+        if (coords[1] < width-1) {
+            //right
+            int index = translate2Dto1D(coords[0], coords[1] + 1);
+            adjacent.add(index);
+        }
+
+        return adjacent;
+    }
+
+    public void printPath(){
+        LinkedList<Integer> path = new LinkedList<>();
+        Traverser v = end;
+        while (v.index!=0){
+            path.add(v.index);
+            v = v.prev;
+        }
+
+        for (int i = 0; i < height; i++){
+            for (int x = 0; x < width; x++){
+                int index = translate2Dto1D(i, x);
+                if (path.contains(index)){
+                    System.out.print('#');
+                } else {
+                    System.out.print(graph.get(i).charAt(x));
+                }
+            }
+            System.out.println();
+        }
+        System.out.println("Heat loss: " + end.accumulatedHeatLoss);
+    }
+
+
+    private int[] translate1Dto2D(int index){
+        int[] coords = new int[2];
+        coords[0] = index/width;
+        coords[1] = index%width;
+        return coords;
+    }
+
+    private int translate2Dto1D(int x, int y){
+        return width*x + y;
+    }
+
+    enum Direction{
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT,
+        START;
+    }
+}
+
+
